@@ -84,12 +84,31 @@ function saveUsers() {
   fs.writeFileSync("./users.json", JSON.stringify(users));
 }
 
+// Зберегти БД
+function saveUsers() {
+  fs.writeFileSync("./users.json", JSON.stringify(users));
+}
+
+// Перевірка, чи минув наступний день
+function isNextDayAvailable(user) {
+  if (!user.lastCompletedAt) return true;
+
+  const last = new Date(user.lastCompletedAt);
+  const now = new Date();
+
+  return (
+    now.getUTCFullYear() > last.getUTCFullYear() ||
+    now.getUTCMonth() > last.getUTCMonth() ||
+    now.getUTCDate() > last.getUTCDate()
+  );
+}
+
 // /start
 bot.onText(/\/start/, (msg) => {
   const id = msg.chat.id;
 
   if (!users[id]) {
-    users[id] = { day: 0 };
+    users[id] = { day: 0, lastCompletedAt: null };
     saveUsers();
   }
 
@@ -98,7 +117,7 @@ bot.onText(/\/start/, (msg) => {
     `Привіт, ${msg.from.first_name}! 👋\n\nРозпочнемо 7-денний фітнес-челендж?\nКожного дня — нове коротке тренування 💪`,
     {
       reply_markup: {
-        keyboard: [["Почати"], ["Завершити"]],
+        keyboard: [["Почати"]],
         resize_keyboard: true,
       },
     }
@@ -109,34 +128,39 @@ bot.onText(/\/start/, (msg) => {
 bot.onText(/Почати/, (msg) => {
   const id = msg.chat.id;
   const user = users[id];
-
   if (!user) return;
 
-  sendWorkout(id);
+  if (!isNextDayAvailable(user) && user.day > 0 && user.day < workouts.length) {
+    bot.sendMessage(
+      id,
+      "⏳ Наступне тренування буде доступне завтра. Повертайся пізніше 💪"
+    );
+  } else {
+    sendWorkout(id);
+  }
 });
 
 // натиснув “Зроблено ✅”
 bot.onText(/Зроблено ✅/, (msg) => {
   const id = msg.chat.id;
   const user = users[id];
-
   if (!user) return;
 
+  user.lastCompletedAt = new Date().toISOString();
   user.day += 1;
   saveUsers();
 
   if (user.day >= workouts.length) {
     bot.sendMessage(
       id,
-      "Ти завершив челендж! 🔥\n\n👉 Хочеш продовжити — ось твій наступний крок:\n[Придбати 30-денний план](https://your-stripe-link.com)",
+      "🎉 Ти завершив челендж! 🔥\n\n👉 Хочеш продовжити?\n[Придбати 30-денний план](https://your-stripe-link.com)",
       {
         parse_mode: "Markdown",
         disable_web_page_preview: true,
       }
     );
   } else {
-    bot.sendMessage(id, "Готово! Завтра буде новий день 💪");
-    sendWorkout(id);
+    bot.sendMessage(id, "Готово! Наступне тренування відкриється завтра 💥");
   }
 });
 
